@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from '../utils/axios';
 
 function CapsuleList() {
@@ -136,6 +137,10 @@ function CapsuleList() {
     return { days, hours, minutes, seconds };
   };
 
+  const formatTimeUnit = (value) => {
+    return value.toString().padStart(2, '0');
+  };
+
   const CountdownDisplay = ({ openDate, isUnlocked }) => {
     const countdown = getCountdown(openDate);
     if (!countdown || isUnlocked) {
@@ -165,32 +170,36 @@ function CapsuleList() {
         color: 'white'
       }}>
         <div style={{ fontSize: '12px', marginBottom: '8px', opacity: 0.9 }}>⏰ 距离开启还有</div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {days > 0 && (
+            <div style={{
+              background: 'rgba(255,255,255,0.2)',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              minWidth: '50px'
+            }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{days}</div>
+              <div style={{ fontSize: '10px' }}>天</div>
+            </div>
+          )}
+          {(days > 0 || hours > 0) && (
+            <div style={{
+              background: 'rgba(255,255,255,0.2)',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              minWidth: '50px'
+            }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{formatTimeUnit(hours)}</div>
+              <div style={{ fontSize: '10px' }}>时</div>
+            </div>
+          )}
           <div style={{
             background: 'rgba(255,255,255,0.2)',
             padding: '8px 12px',
             borderRadius: '8px',
             minWidth: '50px'
           }}>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{days}</div>
-            <div style={{ fontSize: '10px' }}>天</div>
-          </div>
-          <div style={{
-            background: 'rgba(255,255,255,0.2)',
-            padding: '8px 12px',
-            borderRadius: '8px',
-            minWidth: '50px'
-          }}>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{hours.toString().padStart(2, '0')}</div>
-            <div style={{ fontSize: '10px' }}>时</div>
-          </div>
-          <div style={{
-            background: 'rgba(255,255,255,0.2)',
-            padding: '8px 12px',
-            borderRadius: '8px',
-            minWidth: '50px'
-          }}>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{minutes.toString().padStart(2, '0')}</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{formatTimeUnit(minutes)}</div>
             <div style={{ fontSize: '10px' }}>分</div>
           </div>
           <div style={{
@@ -199,7 +208,7 @@ function CapsuleList() {
             borderRadius: '8px',
             minWidth: '50px'
           }}>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{seconds.toString().padStart(2, '0')}</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{formatTimeUnit(seconds)}</div>
             <div style={{ fontSize: '10px' }}>秒</div>
           </div>
         </div>
@@ -222,6 +231,32 @@ function CapsuleList() {
         }
       `}</style>
       <div style={{ marginBottom: '30px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+          <Link 
+            to="/dashboard" 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              background: 'rgba(255,255,255,0.15)',
+              borderRadius: '8px',
+              color: 'white',
+              textDecoration: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(255,255,255,0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'rgba(255,255,255,0.15)';
+            }}
+          >
+            ← 返回创建页面
+          </Link>
+        </div>
         <h1 style={{ color: 'white', margin: 0, fontSize: '28px' }}>📦 我的胶囊列表</h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', margin: '5px 0 0 0' }}>
           共 {capsules.length} 个胶囊 · 按创建时间倒序排列
@@ -439,12 +474,10 @@ function CapsuleList() {
               {isUnlocked(capsule) && (
                 <div style={{
                   marginTop: '16px',
-                  paddingTop: '16px',
                   borderTop: '2px solid #10b981',
                   background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
                   borderRadius: '12px',
-                  padding: '20px',
-                  position: 'relative'
+                  padding: '20px'
                 }}>
                   <div style={{ 
                     fontSize: '14px', 
