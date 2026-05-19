@@ -59,12 +59,21 @@ function Dashboard() {
       newErrors.openDate = '请选择开启日期';
     } else {
       const selectedDate = new Date(openDate);
-      const now = new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const minDate = new Date(today);
+      minDate.setDate(minDate.getDate() + 1);
+      
+      const maxDate = new Date(today);
+      maxDate.setFullYear(maxDate.getFullYear() + 10);
       
       if (isNaN(selectedDate.getTime())) {
         newErrors.openDate = '无效的日期格式';
-      } else if (selectedDate <= now) {
-        newErrors.openDate = '开启日期必须是未来的日期';
+      } else if (selectedDate < minDate) {
+        newErrors.openDate = '开启日期必须是明天或以后的日期';
+      } else if (selectedDate > maxDate) {
+        newErrors.openDate = '开启日期不能超过10年';
       }
     }
 
@@ -149,6 +158,12 @@ function Dashboard() {
     return tomorrow.toISOString().split('T')[0];
   };
 
+  const getMaxDate = () => {
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 10);
+    return maxDate.toISOString().split('T')[0];
+  };
+
   return (
     <div className="dashboard">
       <div style={{ 
@@ -217,7 +232,7 @@ function Dashboard() {
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="给这个胶囊起个名字，例如：给一年后的自己"
+                placeholder="给这个胶囊起个名字，例如：给一年后的自己（2-100字符）"
                 className={errors.title ? 'input-error' : ''}
                 disabled={loading}
                 maxLength={100}
@@ -225,12 +240,21 @@ function Dashboard() {
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
+                alignItems: 'center',
                 fontSize: '12px',
-                color: formData.title.length > 90 ? '#ef4444' : '#9ca3af',
                 marginTop: '4px'
               }}>
-                {errors.title ? <span style={{ color: '#ef4444' }}>{errors.title}</span> : null}
-                <span>{formData.title.length}/100</span>
+                <span style={{ 
+                  color: errors.title ? '#ef4444' : (formData.title.length > 0 && formData.title.length < 2 ? '#f59e0b' : '#9ca3af') 
+                }}>
+                  {errors.title ? errors.title : (formData.title.length > 0 && formData.title.length < 2 ? '标题至少需要2个字符' : '')}
+                </span>
+                <span style={{ 
+                  color: formData.title.length > 90 ? '#ef4444' : (formData.title.length > 80 ? '#f59e0b' : '#9ca3af'),
+                  fontWeight: formData.title.length > 90 ? 'bold' : 'normal'
+                }}>
+                  {formData.title.length}/100
+                </span>
               </div>
             </div>
 
@@ -245,7 +269,7 @@ function Dashboard() {
                 value={formData.content}
                 onChange={handleChange}
                 rows={8}
-                placeholder="写下你想对将来说的话...可以是给未来自己的一封信，也可以是对某人的祝福，或者是一个秘密。"
+                placeholder="写下你想对将来说的话...可以是给未来自己的一封信，也可以是对某人的祝福，或者是一个秘密。（至少10个字符）"
                 className={errors.content ? 'input-error' : ''}
                 disabled={loading}
                 maxLength={10000}
@@ -254,12 +278,19 @@ function Dashboard() {
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
+                alignItems: 'center',
                 fontSize: '12px',
-                color: formData.content.length > 9000 ? '#ef4444' : '#9ca3af',
                 marginTop: '4px'
               }}>
-                {errors.content ? <span style={{ color: '#ef4444' }}>{errors.content}</span> : null}
-                <span>{formData.content.length}/10000</span>
+                <span style={{ color: errors.content ? '#ef4444' : (formData.content.length < 10 ? '#f59e0b' : '#9ca3af') }}>
+                  {errors.content ? errors.content : (formData.content.length < 10 && formData.content.length > 0 ? `还需要 ${10 - formData.content.length} 个字符` : '')}
+                </span>
+                <span style={{ 
+                  color: formData.content.length > 9000 ? '#ef4444' : (formData.content.length > 8000 ? '#f59e0b' : '#9ca3af'),
+                  fontWeight: formData.content.length > 9000 ? 'bold' : 'normal'
+                }}>
+                  {formData.content.length}/10000
+                </span>
               </div>
             </div>
 
@@ -275,6 +306,7 @@ function Dashboard() {
                 value={formData.openDate}
                 onChange={handleChange}
                 min={getMinDate()}
+                max={getMaxDate()}
                 className={errors.openDate ? 'input-error' : ''}
                 disabled={loading}
               />
@@ -285,7 +317,7 @@ function Dashboard() {
                 marginTop: '6px',
                 marginBottom: 0 
               }}>
-                💡 提示：选择一个未来的日期，到那天你才能打开这个胶囊
+                💡 提示：选择明天到10年内的某个日期，到那天你才能打开这个胶囊
               </p>
             </div>
 

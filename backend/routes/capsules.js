@@ -5,10 +5,14 @@ const router = express.Router();
 
 router.get('/', protect, async (req, res) => {
   try {
+    console.log('获取胶囊列表 - 用户ID:', req.user._id);
+    
     const capsules = await Capsule.find({ createdBy: req.user._id })
-      .select('title content openDate isOpened createdAt')
+      .select('title content openDate isOpened createdAt createdBy')
       .sort({ createdAt: -1 });
     
+    console.log('找到胶囊数量:', capsules.length);
+
     const processedCapsules = capsules.map(capsule => {
       const now = new Date();
       const openDate = new Date(capsule.openDate);
@@ -16,6 +20,7 @@ router.get('/', protect, async (req, res) => {
       if (!capsule.isOpened && now >= openDate) {
         capsule.isOpened = true;
         capsule.save();
+        console.log('自动解锁胶囊:', capsule._id);
       }
       
       return capsule;
@@ -71,7 +76,14 @@ router.post('/', protect, async (req, res) => {
     }
 
     const parsedOpenDate = new Date(openDate);
-    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const minDate = new Date(today);
+    minDate.setDate(minDate.getDate() + 1);
+    
+    const maxDate = new Date(today);
+    maxDate.setFullYear(maxDate.getFullYear() + 10);
     
     if (isNaN(parsedOpenDate.getTime())) {
       return res.status(400).json({ 
@@ -80,12 +92,22 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
-    if (parsedOpenDate <= now) {
+    if (parsedOpenDate < minDate) {
       return res.status(400).json({ 
         success: false, 
-        message: '开启日期必须是未来的日期' 
+        message: '开启日期必须是明天或以后的日期' 
       });
     }
+
+    if (parsedOpenDate > maxDate) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '开启日期不能超过10年' 
+      });
+    }
+
+    console.log('创建胶囊 - 用户ID:', req.user._id);
+    console.log('创建胶囊 - 数据:', { title: trimmedTitle, openDate: parsedOpenDate });
 
     const capsule = await Capsule.create({
       title: trimmedTitle,
@@ -95,6 +117,8 @@ router.post('/', protect, async (req, res) => {
       isOpened: false
     });
 
+    console.log('胶囊创建成功 - ID:', capsule._id);
+
     res.status(201).json({ 
       success: true, 
       message: '胶囊封存成功！', 
@@ -102,7 +126,8 @@ router.post('/', protect, async (req, res) => {
         _id: capsule._id,
         title: capsule.title,
         openDate: capsule.openDate,
-        createdAt: capsule.createdAt
+        createdAt: capsule.createdAt,
+        createdBy: capsule.createdBy
       }
     });
   } catch (error) {
