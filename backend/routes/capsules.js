@@ -1,14 +1,30 @@
 const express = require('express');
 const Capsule = require('../models/Capsule');
 const { protect } = require('../middleware/auth');
+const upload = require('../middleware/upload');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
+
+const deleteImageFile = (filename) => {
+  try {
+    const uploadDir = path.join(__dirname, '../uploads');
+    const filePath = path.join(uploadDir, filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log('文件删除成功:', filename);
+    }
+  } catch (error) {
+    console.error('删除文件失败:', error);
+  }
+};
 
 router.get('/', protect, async (req, res) => {
   try {
     console.log('获取胶囊列表 - 用户ID:', req.user._id);
     
     const capsules = await Capsule.find({ createdBy: req.user._id })
-      .select('title content openDate isOpened createdAt createdBy')
+      .select('title content images openDate isOpened createdAt createdBy')
       .sort({ createdAt: -1 });
     
     console.log('找到胶囊数量:', capsules.length);
@@ -23,6 +39,15 @@ router.get('/', protect, async (req, res) => {
         console.log('自动解锁胶囊:', capsule._id);
       }
       
+      if (capsule.images && capsule.images.length > 0) {
+        capsule.images = capsule.images.map(image => {
+          if (!image.path.startsWith('http')) {
+            image.path = `${req.protocol}://${req.get('host')}${image.path}`;
+          }
+          return image;
+        });
+      }
+      
       return capsule;
     });
 
@@ -33,7 +58,7 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, upload.array('images', 5), async (req, res) => {
   try {
     const { title, content, openDate } = req.body;
 
@@ -106,12 +131,20 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
+    const images = req.files ? req.files.map(file => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      path: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
+      size: file.size
+    })) : [];
+
     console.log('创建胶囊 - 用户ID:', req.user._id);
-    console.log('创建胶囊 - 数据:', { title: trimmedTitle, openDate: parsedOpenDate });
+    console.log('创建胶囊 - 数据:', { title: trimmedTitle, openDate: parsedOpenDate, imagesCount: images.length });
 
     const capsule = await Capsule.create({
       title: trimmedTitle,
       content: trimmedContent,
+      images: images,
       openDate: parsedOpenDate,
       createdBy: req.user._id,
       isOpened: false
@@ -132,7 +165,13 @@ router.post('/', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('创建胶囊错误:', error);
-    res.status(500).json({ success: false, message: '服务器错误，请稍后重试' });
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: '图片大小不能超过2MB' });
+    }
+    if (error.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ success: false, message: '最多只能上传5张图片' });
+    }
+    res.status(500).json({ success: false, message: error.message || '服务器错误，请稍后重试' });
   }
 });
 
@@ -170,9 +209,51 @@ router.get('/:id', protect, async (req, res) => {
       await capsule.save();
     }
 
+    if (capsule.images && capsule.images.length > 0) {
+      capsule.images = capsule.images.map(image => {
+        if (!image.path.startsWith('http')) {
+          image.path = `${req.protocol}://${req.get('host')}${image.path}`;
+        }
+        return image;
+      });
+    }
+
     res.json({ success: true, data: capsule });
   } catch (error) {
     console.error('获取胶囊详情错误:', error);
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+});
+
+router.delete('/:id', protect, async (req, res) => {
+  try {
+    const capsule = await Capsule.findById(req.params.id);
+
+    if (!capsule) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '胶囊不存在' 
+      });
+    }
+
+    if (capsule.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ 
+        success: false, 
+        message: '无权限删除' 
+      });
+    }
+
+    if (capsule.images && capsule.images.length > 0) {
+      capsule.images.forEach(image => {
+        deleteImageFile(image.filename);
+      });
+    }
+
+    await Capsule.findByIdAndDelete(req.params.id);
+
+    res.json({ success: true, message: '胶囊删除成功' });
+  } catch (error) {
+    console.error('删除胶囊错误:', error);
     res.status(500).json({ success: false, message: '服务器错误' });
   }
 });

@@ -9,6 +9,9 @@ function Dashboard() {
     content: '',
     openDate: ''
   });
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -17,6 +20,14 @@ function Dashboard() {
   useEffect(() => {
     fetchCapsules();
   }, []);
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   const fetchCapsules = async () => {
     try {
@@ -97,6 +108,64 @@ function Dashboard() {
     if (submitSuccess) setSubmitSuccess('');
   };
 
+  const handleImageSelect = async (e) => {
+    const files = Array.from(e.target.files);
+    const remainingSlots = 5 - selectedImages.length;
+    const filesToAdd = files.slice(0, remainingSlots);
+
+    const validFiles = [];
+    const newErrors = [];
+
+    filesToAdd.forEach(file => {
+      if (file.size > 2 * 1024 * 1024) {
+        newErrors.push(`图片 "${file.name}" 大小为 ${formatFileSize(file.size)}，超过 2MB 限制`);
+      } else if (!file.type.startsWith('image/')) {
+        newErrors.push(`"${file.name}" 不是有效的图片文件`);
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (files.length > remainingSlots) {
+      newErrors.push(`最多只能上传 5 张图片，已自动忽略 ${files.length - remainingSlots} 张`);
+    }
+
+    if (newErrors.length > 0) {
+      setErrors(prev => ({ ...prev, images: newErrors.join('；') }));
+    } else {
+      setErrors(prev => ({ ...prev, images: '' }));
+    }
+
+    if (validFiles.length > 0) {
+      setSelectedImages(prev => [...prev, ...validFiles]);
+      
+      const previews = await Promise.all(
+        validFiles.map(file => {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              resolve({
+                dataUrl: reader.result,
+                name: file.name,
+                size: file.size
+              });
+            };
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+      
+      setImagePreviews(prev => [...prev, ...previews]);
+    }
+
+    e.target.value = '';
+  };
+
+  const removeImage = (index) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -106,9 +175,21 @@ function Dashboard() {
     setSubmitSuccess('');
 
     try {
-      const response = await axios.post('/api/capsules', formData);
+      const data = new FormData();
+      data.append('title', formData.title);
+      data.append('content', formData.content);
+      data.append('openDate', formData.openDate);
+      
+      selectedImages.forEach(image => {
+        data.append('images', image);
+      });
+
+      const response = await axios.post('/api/capsules', data);
+      
       if (response.data.success) {
         setFormData({ title: '', content: '', openDate: '' });
+        setSelectedImages([]);
+        setImagePreviews([]);
         setShowForm(false);
         setSubmitSuccess(response.data.message);
         fetchCapsules();
@@ -130,6 +211,22 @@ function Dashboard() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const deleteCapsule = async (id) => {
+    if (!window.confirm('确定要删除这个胶囊吗？此操作不可撤销。')) {
+      return;
+    }
+    
+    try {
+      const response = await axios.delete(`/api/capsules/${id}`);
+      if (response.data.success) {
+        setCapsules(prev => prev.filter(c => c._id !== id));
+      }
+    } catch (error) {
+      console.error('删除胶囊失败:', error);
+      alert('删除失败，请重试');
+    }
   };
 
   const isLocked = (openDate) => {
@@ -321,6 +418,128 @@ function Dashboard() {
               </p>
             </div>
 
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🖼️</span>
+                上传图片
+                <span style={{ color: '#9ca3af', fontSize: '13px' }}>（可选，最多5张，每张不超过2MB）</span>
+              </label>
+              
+              {imagePreviews.length > 0 && (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                  gap: '16px',
+                  marginBottom: '16px'
+                }}>
+                  {imagePreviews.map((preview, index) => (
+                    <div key={index} style={{ position: 'relative' }}>
+                      <img 
+                        src={preview.dataUrl} 
+                        alt={preview.name}
+                        onClick={() => setSelectedPreviewImage(preview.dataUrl)}
+                        style={{
+                          width: '100%',
+                          height: '120px',
+                          objectFit: 'cover',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+                        onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                      />
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '4px',
+                        left: '4px',
+                        right: '4px',
+                        background: 'rgba(0,0,0,0.6)',
+                        color: 'white',
+                        fontSize: '10px',
+                        padding: '3px 6px',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {formatFileSize(preview.size)}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '-8px',
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                          zIndex: 10
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedImages.length < 5 && (
+                <label style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '30px',
+                  border: '2px dashed #d1d5db',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  background: '#f9fafb'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.borderColor = '#3b82f6';
+                  e.target.style.background = '#eff6ff';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.background = '#f9fafb';
+                }}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageSelect}
+                    disabled={loading}
+                    style={{ display: 'none' }}
+                  />
+                  <span style={{ fontSize: '32px', marginBottom: '8px' }}>📷</span>
+                  <span style={{ color: '#6b7280', fontSize: '14px' }}>
+                    点击选择图片（{selectedImages.length}/5）
+                  </span>
+                </label>
+              )}
+
+              {errors.images && (
+                <span className="error-text" style={{ display: 'block', marginTop: '8px' }}>
+                  {errors.images}
+                </span>
+              )}
+            </div>
+
             <button 
               type="submit" 
               className="btn btn-primary"
@@ -370,7 +589,27 @@ function Dashboard() {
               key={capsule._id}
               className={`card capsule-card ${capsule.isOpened ? 'opened' : 'locked'}`}
             >
-              <div className="capsule-title">{capsule.title}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                <div className="capsule-title" style={{ margin: 0 }}>{capsule.title}</div>
+                <button
+                  onClick={() => deleteCapsule(capsule._id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#ef4444',
+                    fontSize: '18px',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = '#fef2f2'}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  title="删除胶囊"
+                >
+                  🗑️
+                </button>
+              </div>
               <div className="capsule-date">
                 📅 开启时间：{formatDate(capsule.openDate)}
               </div>
@@ -391,6 +630,33 @@ function Dashboard() {
                   paddingTop: '15px', 
                   borderTop: '1px solid #eee'
                 }}>
+                  {capsule.images && capsule.images.length > 0 && (
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                      gap: '8px',
+                      marginBottom: '12px'
+                    }}>
+                      {capsule.images.map((image, index) => (
+                        <img 
+                          key={index}
+                          src={image.path}
+                          alt={image.originalName}
+                          onClick={() => setSelectedPreviewImage(image.path)}
+                          style={{
+                            width: '100%',
+                            height: '100px',
+                            objectFit: 'cover',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.transform = 'scale(1.1)'}
+                          onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                        />
+                      ))}
+                    </div>
+                  )}
                   <p style={{ 
                     whiteSpace: 'pre-wrap', 
                     color: '#4b5563',
@@ -404,6 +670,78 @@ function Dashboard() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {selectedPreviewImage && (
+        <div 
+          onClick={() => setSelectedPreviewImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.9)',
+            display: '-webkit-flex',
+            display: 'flex',
+            WebkitAlignItems: 'center',
+            alignItems: 'center',
+            WebkitJustifyContent: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            cursor: 'pointer',
+            WebkitOverflowScrolling: 'touch',
+            overflow: 'hidden'
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedPreviewImage(null);
+            }}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              border: 'none',
+              fontSize: '28px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: '-webkit-flex',
+              display: 'flex',
+              WebkitAlignItems: 'center',
+              alignItems: 'center',
+              WebkitJustifyContent: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              zIndex: 10001
+            }}
+          >
+            ×
+          </button>
+          <img 
+            src={selectedPreviewImage} 
+            alt="预览大图"
+            style={{
+              maxWidth: '90%',
+              maxHeight: '85vh',
+              width: 'auto',
+              height: 'auto',
+              objectFit: 'contain',
+              WebkitObjectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+              display: 'block'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

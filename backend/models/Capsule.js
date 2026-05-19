@@ -10,6 +10,12 @@ const capsuleSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  images: [{
+    filename: String,
+    originalName: String,
+    path: String,
+    size: Number
+  }],
   openDate: {
     type: Date,
     required: true

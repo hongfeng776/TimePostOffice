@@ -479,6 +479,47 @@ function CapsuleList() {
                   borderRadius: '12px',
                   padding: '20px'
                 }}>
+                  {capsule.images && capsule.images.length > 0 && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        color: '#059669', 
+                        marginBottom: '12px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <span style={{ fontSize: '18px' }}>🖼️</span>
+                        胶囊图片 ({capsule.images.length})
+                      </div>
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                        gap: '12px'
+                      }}>
+                        {capsule.images.map((image, index) => (
+                          <img 
+                            key={index}
+                            src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${image.path}`}
+                            alt={image.originalName}
+                            style={{
+                              width: '100%',
+                              height: '150px',
+                              objectFit: 'cover',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                              transition: 'transform 0.2s'
+                            }}
+                            onClick={() => window.open(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${image.path}`, '_blank')}
+                            onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
+                            onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div style={{ 
                     fontSize: '14px', 
                     color: '#059669', 
