@@ -52,15 +52,69 @@ function CapsuleList() {
     return currentTime < new Date(openDate);
   };
 
+  const isUnlocked = (capsule) => {
+    return capsule.isOpened || !isLocked(capsule.openDate);
+  };
+
+  const fuzzyMatch = (text, query) => {
+    if (!query) return true;
+    const textLower = text.toLowerCase();
+    const queryLower = query.toLowerCase().trim();
+    
+    if (textLower.includes(queryLower)) return true;
+    
+    const queryChars = queryLower.split('');
+    let textIndex = 0;
+    
+    for (const char of queryChars) {
+      textIndex = textLower.indexOf(char, textIndex);
+      if (textIndex === -1) return false;
+      textIndex++;
+    }
+    
+    return true;
+  };
+
+  const highlightText = (text, query) => {
+    if (!query) return text;
+    
+    const textLower = text.toLowerCase();
+    const queryLower = query.toLowerCase().trim();
+    
+    if (textLower.includes(queryLower)) {
+      const index = textLower.indexOf(queryLower);
+      const before = text.substring(0, index);
+      const match = text.substring(index, index + queryLower.length);
+      const after = text.substring(index + queryLower.length);
+      
+      return (
+        <>
+          {before}
+          <span style={{ 
+            background: 'linear-gradient(135deg, #fef08a 0%, #fde047 100%)', 
+            padding: '2px 4px', 
+            borderRadius: '4px',
+            fontWeight: 600
+          }}>
+            {match}
+          </span>
+          {after}
+        </>
+      );
+    }
+    
+    return text;
+  };
+
   const getFilteredCapsules = () => {
     return capsules.filter(capsule => {
-      const matchesSearch = capsule.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = fuzzyMatch(capsule.title, searchTerm);
       
       let matchesStatus = true;
       if (statusFilter === 'locked') {
-        matchesStatus = isLocked(capsule.openDate) && !capsule.isOpened;
+        matchesStatus = !isUnlocked(capsule);
       } else if (statusFilter === 'opened') {
-        matchesStatus = capsule.isOpened || !isLocked(capsule.openDate);
+        matchesStatus = isUnlocked(capsule);
       }
       
       return matchesSearch && matchesStatus;
@@ -82,9 +136,9 @@ function CapsuleList() {
     return { days, hours, minutes, seconds };
   };
 
-  const CountdownDisplay = ({ openDate }) => {
+  const CountdownDisplay = ({ openDate, isUnlocked }) => {
     const countdown = getCountdown(openDate);
-    if (!countdown) {
+    if (!countdown || isUnlocked) {
       return (
         <div style={{
           background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -92,9 +146,10 @@ function CapsuleList() {
           borderRadius: '12px',
           textAlign: 'center',
           color: 'white',
-          fontWeight: 600
+          fontWeight: 600,
+          animation: 'pulse 2s infinite'
         }}>
-          🎉 已可开启
+          🎉 已解锁，可以查看内容啦！
         </div>
       );
     }
@@ -156,6 +211,16 @@ function CapsuleList() {
 
   return (
     <div className="capsule-list">
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
+        }
+      `}</style>
       <div style={{ marginBottom: '30px' }}>
         <h1 style={{ color: 'white', margin: 0, fontSize: '28px' }}>📦 我的胶囊列表</h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', margin: '5px 0 0 0' }}>
@@ -308,36 +373,55 @@ function CapsuleList() {
           {filteredCapsules.map((capsule, index) => (
             <div
               key={capsule._id}
-              className={`card capsule-card ${capsule.isOpened ? 'opened' : 'locked'}`}
-              style={{ padding: '24px' }}
+              className={`card capsule-card ${isUnlocked(capsule) ? 'opened' : 'locked'}`}
+              style={{ 
+                padding: '24px',
+                border: isUnlocked(capsule) ? '3px solid #10b981' : '1px solid #e5e7eb',
+                boxShadow: isUnlocked(capsule) ? '0 4px 12px rgba(16, 185, 129, 0.15)' : 'none'
+              }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
                     <span style={{
                       fontSize: '12px',
                       padding: '4px 10px',
                       borderRadius: '20px',
-                      background: capsule.isOpened
+                      background: isUnlocked(capsule)
                         ? 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)'
                         : 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-                      color: capsule.isOpened ? '#059669' : '#d97706',
+                      color: isUnlocked(capsule) ? '#059669' : '#d97706',
                       fontWeight: 600
                     }}>
-                      {capsule.isOpened ? '📨 已开启' : '🔒 封存中'}
+                      {isUnlocked(capsule) ? '📨 已解锁' : '🔒 封存中'}
                     </span>
+                    {isUnlocked(capsule) && (
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '3px 8px',
+                        borderRadius: '20px',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: 'white',
+                        fontWeight: 600,
+                        animation: 'pulse 2s infinite'
+                      }}>
+                        ✨ 可查看
+                      </span>
+                    )}
                     <span style={{ fontSize: '14px', color: '#9ca3af' }}>
                       #{capsules.findIndex(c => c._id === capsule._id) + 1}
                     </span>
                   </div>
-                  <h3 style={{ margin: 0, fontSize: '20px', color: '#1f2937' }}>{capsule.title}</h3>
+                  <h3 style={{ margin: 0, fontSize: '20px', color: '#1f2937' }}>
+                    {highlightText(capsule.title, searchTerm)}
+                  </h3>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: '13px', color: '#6b7280' }}>
                   <div>📅 创建于 {formatCreatedDate(capsule.createdAt)}</div>
                 </div>
               </div>
 
-              <CountdownDisplay openDate={capsule.openDate} />
+              <CountdownDisplay openDate={capsule.openDate} isUnlocked={isUnlocked(capsule)} />
 
               <div style={{
                 marginTop: '16px',
@@ -352,22 +436,35 @@ function CapsuleList() {
                 </div>
               </div>
 
-              {capsule.isOpened && (
+              {isUnlocked(capsule) && (
                 <div style={{
                   marginTop: '16px',
                   paddingTop: '16px',
-                  borderTop: '1px solid #e5e7eb',
-                  background: '#f9fafb',
-                  borderRadius: '8px',
-                  padding: '16px'
+                  borderTop: '2px solid #10b981',
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  position: 'relative'
                 }}>
-                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>💌 胶囊内容：</div>
+                  <div style={{ 
+                    fontSize: '14px', 
+                    color: '#059669', 
+                    marginBottom: '12px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span style={{ fontSize: '18px' }}>💌</span>
+                    胶囊内容
+                  </div>
                   <p style={{
                     whiteSpace: 'pre-wrap',
-                    color: '#4b5563',
-                    lineHeight: '1.7',
+                    color: '#1f2937',
+                    lineHeight: '1.8',
                     margin: 0,
-                    fontSize: '14px'
+                    fontSize: '15px',
+                    fontWeight: 500
                   }}>
                     {capsule.content}
                   </p>
