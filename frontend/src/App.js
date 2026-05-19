@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import CapsuleList from './pages/CapsuleList';
 import './App.css';
 
 function PrivateRoute({ children }) {
@@ -25,6 +26,11 @@ function App() {
             <Route path="/dashboard" element={
               <PrivateRoute>
                 <Dashboard />
+              </PrivateRoute>
+            } />
+            <Route path="/capsules" element={
+              <PrivateRoute>
+                <CapsuleList />
               </PrivateRoute>
             } />
           </Routes>

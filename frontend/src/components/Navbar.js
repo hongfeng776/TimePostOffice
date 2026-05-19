@@ -15,7 +15,8 @@ function Navbar() {
             <span className="user-welcome">
               👋 你好, <strong>{user?.username}</strong>
             </span>
-            <Link to="/dashboard">我的胶囊</Link>
+            <Link to="/dashboard">创建胶囊</Link>
+            <Link to="/capsules">胶囊列表</Link>
             <button className="btn btn-secondary" onClick={logout}>退出</button>
           </>
         ) : (
