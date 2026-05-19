@@ -5,11 +5,26 @@ const router = express.Router();
 
 router.get('/', protect, async (req, res) => {
   try {
-    const capsules = await Capsule.find({ createdBy: req.user._id });
-    res.json({ success: true, data: capsules });
+    const capsules = await Capsule.find({ createdBy: req.user._id })
+      .select('title content openDate isOpened createdAt')
+      .sort({ createdAt: -1 });
+    
+    const processedCapsules = capsules.map(capsule => {
+      const now = new Date();
+      const openDate = new Date(capsule.openDate);
+      
+      if (!capsule.isOpened && now >= openDate) {
+        capsule.isOpened = true;
+        capsule.save();
+      }
+      
+      return capsule;
+    });
+
+    res.json({ success: true, data: processedCapsules });
   } catch (error) {
     console.error('获取胶囊列表错误:', error);
-    res.status(500).json({ success: false, message: '服务器错误' });
+    res.status(500).json({ success: false, message: '服务器错误，请稍后重试' });
   }
 });
 
@@ -24,28 +39,75 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
-    if (title.trim().length < 2) {
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim();
+
+    if (trimmedTitle.length < 2) {
       return res.status(400).json({ 
         success: false, 
         message: '标题至少需要2个字符' 
       });
     }
 
+    if (trimmedTitle.length > 100) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '标题不能超过100个字符' 
+      });
+    }
+
+    if (trimmedContent.length < 10) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '内容至少需要10个字符' 
+      });
+    }
+
+    if (trimmedContent.length > 10000) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '内容不能超过10000个字符' 
+      });
+    }
+
+    const parsedOpenDate = new Date(openDate);
+    const now = new Date();
+    
+    if (isNaN(parsedOpenDate.getTime())) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '无效的日期格式' 
+      });
+    }
+
+    if (parsedOpenDate <= now) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '开启日期必须是未来的日期' 
+      });
+    }
+
     const capsule = await Capsule.create({
-      title: title.trim(),
-      content: content.trim(),
-      openDate,
-      createdBy: req.user._id
+      title: trimmedTitle,
+      content: trimmedContent,
+      openDate: parsedOpenDate,
+      createdBy: req.user._id,
+      isOpened: false
     });
 
     res.status(201).json({ 
       success: true, 
-      message: '胶囊创建成功', 
-      data: capsule 
+      message: '胶囊封存成功！', 
+      data: {
+        _id: capsule._id,
+        title: capsule.title,
+        openDate: capsule.openDate,
+        createdAt: capsule.createdAt
+      }
     });
   } catch (error) {
     console.error('创建胶囊错误:', error);
-    res.status(500).json({ success: false, message: '服务器错误' });
+    res.status(500).json({ success: false, message: '服务器错误，请稍后重试' });
   }
 });
 

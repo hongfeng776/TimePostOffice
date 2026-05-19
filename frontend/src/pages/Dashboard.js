@@ -36,22 +36,36 @@ function Dashboard() {
     const newErrors = {};
     const { title, content, openDate } = formData;
 
-    if (!title.trim()) {
-      newErrors.title = '请输入标题';
-    } else if (title.trim().length < 2) {
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim();
+
+    if (!trimmedTitle) {
+      newErrors.title = '请输入胶囊标题';
+    } else if (trimmedTitle.length < 2) {
       newErrors.title = '标题至少需要2个字符';
+    } else if (trimmedTitle.length > 100) {
+      newErrors.title = '标题不能超过100个字符';
     }
 
-    if (!content.trim()) {
+    if (!trimmedContent) {
       newErrors.content = '请输入胶囊内容';
-    } else if (content.trim().length < 10) {
-      newErrors.content = '内容至少需要10个字符';
+    } else if (trimmedContent.length < 10) {
+      newErrors.content = '内容至少需要10个字符，给将来说点什么吧';
+    } else if (trimmedContent.length > 10000) {
+      newErrors.content = '内容不能超过10000个字符';
     }
 
     if (!openDate) {
       newErrors.openDate = '请选择开启日期';
-    } else if (new Date(openDate) <= new Date()) {
-      newErrors.openDate = '开启日期必须是未来的日期';
+    } else {
+      const selectedDate = new Date(openDate);
+      const now = new Date();
+      
+      if (isNaN(selectedDate.getTime())) {
+        newErrors.openDate = '无效的日期格式';
+      } else if (selectedDate <= now) {
+        newErrors.openDate = '开启日期必须是未来的日期';
+      }
     }
 
     setErrors(newErrors);
@@ -87,12 +101,13 @@ function Dashboard() {
       if (response.data.success) {
         setFormData({ title: '', content: '', openDate: '' });
         setShowForm(false);
-        setSubmitSuccess('胶囊创建成功！');
+        setSubmitSuccess(response.data.message);
         fetchCapsules();
       }
     } catch (error) {
       console.error('创建胶囊失败:', error);
-      alert(error.response?.data?.message || '创建失败，请重试');
+      const errorMsg = error.response?.data?.message || '创建失败，请重试';
+      setErrors(prev => ({ ...prev, submit: errorMsg }));
     } finally {
       setLoading(false);
     }
@@ -102,7 +117,9 @@ function Dashboard() {
     return new Date(dateString).toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -110,10 +127,44 @@ function Dashboard() {
     return new Date() < new Date(openDate);
   };
 
+  const getTimeUntilUnlock = (openDate) => {
+    const now = new Date();
+    const unlock = new Date(openDate);
+    const diff = unlock - now;
+    
+    if (diff <= 0) return '已可开启';
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      return `还有 ${days} 天 ${hours} 小时开启`;
+    }
+    return `还有 ${hours} 小时开启`;
+  };
+
+  const getMinDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
   return (
     <div className="dashboard">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1>我的时间胶囊</h1>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '30px',
+        flexWrap: 'wrap',
+        gap: '15px'
+      }}>
+        <div>
+          <h1 style={{ color: 'white', margin: 0, fontSize: '28px' }}>我的时间胶囊</h1>
+          <p style={{ color: 'rgba(255,255,255,0.8)', margin: '5px 0 0 0' }}>
+            共 {capsules.length} 个胶囊
+          </p>
+        </div>
         <button 
           className="btn btn-primary" 
           onClick={() => {
@@ -121,85 +172,164 @@ function Dashboard() {
             setErrors({});
             setSubmitSuccess('');
           }}
+          style={{ borderRadius: '50px', padding: '12px 28px' }}
         >
-          {showForm ? '取消' : '+ 创建新胶囊'}
+          {showForm ? '✕ 取消' : '+ 封存新胶囊'}
         </button>
       </div>
 
       {showForm && (
         <div className="card" style={{ marginBottom: '30px' }}>
-          <h3 style={{ marginBottom: '20px' }}>创建新的时间胶囊</h3>
+          <div style={{ 
+            textAlign: 'center', 
+            marginBottom: '25px',
+            paddingBottom: '20px',
+            borderBottom: '1px solid #eee'
+          }}>
+            <div style={{ fontSize: '40px', marginBottom: '10px' }}>📦</div>
+            <h3 style={{ margin: 0, color: '#1f2937', fontSize: '22px' }}>封存你的时间胶囊</h3>
+            <p style={{ margin: '8px 0 0 0', color: '#6b7280', fontSize: '14px' }}>
+              给未来的自己写一封信，在指定日期开启
+            </p>
+          </div>
           
           {submitSuccess && (
-            <div style={{ 
-              background: '#f0fff4', 
-              border: '1px solid #9ae6b4', 
-              color: '#2f855a', 
-              padding: '12px', 
-              borderRadius: '5px', 
-              marginBottom: '20px',
-              textAlign: 'center'
-            }}>
-              {submitSuccess}
+            <div className="success-message">
+              ✅ {submitSuccess}
+            </div>
+          )}
+
+          {errors.submit && (
+            <div className="error-message">
+              ❌ {errors.submit}
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label>标题</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📝</span>
+                胶囊标题
+                <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <input
                 type="text"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="给你的胶囊起个名字"
+                placeholder="给这个胶囊起个名字，例如：给一年后的自己"
                 className={errors.title ? 'input-error' : ''}
                 disabled={loading}
+                maxLength={100}
               />
-              {errors.title && <span className="error-text">{errors.title}</span>}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                fontSize: '12px',
+                color: formData.title.length > 90 ? '#ef4444' : '#9ca3af',
+                marginTop: '4px'
+              }}>
+                {errors.title ? <span style={{ color: '#ef4444' }}>{errors.title}</span> : null}
+                <span>{formData.title.length}/100</span>
+              </div>
             </div>
 
             <div className="form-group">
-              <label>内容</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>💌</span>
+                胶囊内容
+                <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <textarea
                 name="content"
                 value={formData.content}
                 onChange={handleChange}
-                rows="5"
-                placeholder="写下你想对将来说的话..."
+                rows={8}
+                placeholder="写下你想对将来说的话...可以是给未来自己的一封信，也可以是对某人的祝福，或者是一个秘密。"
                 className={errors.content ? 'input-error' : ''}
                 disabled={loading}
+                maxLength={10000}
+                style={{ resize: 'vertical' }}
               />
-              {errors.content && <span className="error-text">{errors.content}</span>}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                fontSize: '12px',
+                color: formData.content.length > 9000 ? '#ef4444' : '#9ca3af',
+                marginTop: '4px'
+              }}>
+                {errors.content ? <span style={{ color: '#ef4444' }}>{errors.content}</span> : null}
+                <span>{formData.content.length}/10000</span>
+              </div>
             </div>
 
             <div className="form-group">
-              <label>开启日期</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🔓</span>
+                开启日期
+                <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <input
                 type="date"
                 name="openDate"
                 value={formData.openDate}
                 onChange={handleChange}
+                min={getMinDate()}
                 className={errors.openDate ? 'input-error' : ''}
                 disabled={loading}
               />
               {errors.openDate && <span className="error-text">{errors.openDate}</span>}
+              <p style={{ 
+                fontSize: '12px', 
+                color: '#9ca3af', 
+                marginTop: '6px',
+                marginBottom: 0 
+              }}>
+                💡 提示：选择一个未来的日期，到那天你才能打开这个胶囊
+              </p>
             </div>
 
             <button 
               type="submit" 
               className="btn btn-primary"
               disabled={loading}
+              style={{ 
+                width: '100%', 
+                padding: '14px',
+                fontSize: '16px',
+                marginTop: '10px'
+              }}
             >
-              {loading ? '封存中...' : '封存胶囊'}
+              {loading ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                  <span className="spinner"></span>
+                  封存中...
+                </span>
+              ) : '🔒 封存时间胶囊'}
             </button>
           </form>
         </div>
       )}
 
       {fetchLoading ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p>加载中...</p>
+        <div className="card" style={{ textAlign: 'center', padding: '60px' }}>
+          <div className="spinner" style={{ margin: '0 auto 15px auto' }}></div>
+          <p style={{ color: '#6b7280' }}>正在加载你的胶囊...</p>
+        </div>
+      ) : capsules.length === 0 ? (
+        <div className="card empty-state">
+          <div className="empty-state-icon">📦</div>
+          <h3>还没有时间胶囊</h3>
+          <p>点击上方按钮，创建你的第一个时间胶囊，给未来的自己写一封信吧！</p>
+          {!showForm && (
+            <button 
+              className="btn btn-primary" 
+              onClick={() => setShowForm(true)}
+              style={{ marginTop: '10px' }}
+            >
+              创建我的第一个胶囊
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid">
@@ -210,29 +340,38 @@ function Dashboard() {
             >
               <div className="capsule-title">{capsule.title}</div>
               <div className="capsule-date">
-                📅 开启日期: {formatDate(capsule.openDate)}
+                📅 开启时间：{formatDate(capsule.openDate)}
+              </div>
+              <div style={{ 
+                fontSize: '13px', 
+                color: isLocked(capsule.openDate) ? '#f59e0b' : '#10b981',
+                marginBottom: '12px',
+                fontWeight: 500
+              }}>
+                ⏰ {getTimeUntilUnlock(capsule.openDate)}
               </div>
               <span className={`capsule-status ${capsule.isOpened ? 'opened' : 'locked'}`}>
-                {capsule.isOpened ? '已开启' : (isLocked(capsule.openDate) ? '🔒 封存中' : '可开启')}
+                {capsule.isOpened ? '📨 已开启' : '🔒 封存中'}
               </span>
               {capsule.isOpened && (
-                <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
-                  <p style={{ whiteSpace: 'pre-wrap', color: '#333' }}>{capsule.content}</p>
+                <div style={{ 
+                  marginTop: '15px', 
+                  paddingTop: '15px', 
+                  borderTop: '1px solid #eee'
+                }}>
+                  <p style={{ 
+                    whiteSpace: 'pre-wrap', 
+                    color: '#4b5563',
+                    lineHeight: '1.7',
+                    margin: 0,
+                    fontSize: '14px'
+                  }}>
+                    {capsule.content}
+                  </p>
                 </div>
               )}
             </div>
           ))}
-        </div>
-      )}
-
-      {!fetchLoading && capsules.length === 0 && !showForm && (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '15px' }}>📦</div>
-          <h3 style={{ marginBottom: '10px', color: '#333' }}>还没有时间胶囊</h3>
-          <p style={{ color: '#666', marginBottom: '20px' }}>点击上方按钮，创建你的第一个时间胶囊吧！</p>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            创建我的第一个胶囊
-          </button>
         </div>
       )}
     </div>
