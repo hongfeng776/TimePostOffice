@@ -12,6 +12,16 @@ function Dashboard() {
   const [selectedImages, setSelectedImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState(null);
+  const [editingCapsule, setEditingCapsule] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    content: '',
+    openDate: ''
+  });
+  const [editExistingImages, setEditExistingImages] = useState([]);
+  const [editNewImages, setEditNewImages] = useState([]);
+  const [editNewPreviews, setEditNewPreviews] = useState([]);
+  const [editLoading, setEditLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -227,6 +237,143 @@ function Dashboard() {
       console.error('删除胶囊失败:', error);
       alert('删除失败，请重试');
     }
+  };
+
+  const startEditCapsule = (capsule) => {
+    if (capsule.isOpened) {
+      alert('已开启的胶囊不能修改');
+      return;
+    }
+    setEditingCapsule(capsule);
+    setEditFormData({
+      title: capsule.title,
+      content: capsule.content,
+      openDate: capsule.openDate.split('T')[0]
+    });
+    setEditExistingImages(capsule.images || []);
+    setEditNewImages([]);
+    setEditNewPreviews([]);
+    setErrors({});
+  };
+
+  const cancelEdit = () => {
+    setEditingCapsule(null);
+    setEditFormData({ title: '', content: '', openDate: '' });
+    setEditExistingImages([]);
+    setEditNewImages([]);
+    setEditNewPreviews([]);
+    setErrors({});
+  };
+
+  const removeEditExistingImage = (index) => {
+    setEditExistingImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeEditNewImage = (index) => {
+    setEditNewImages(prev => prev.filter((_, i) => i !== index));
+    setEditNewPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEditImageSelect = async (e) => {
+    const files = Array.from(e.target.files);
+    const totalImages = editExistingImages.length + editNewImages.length;
+    const remainingSlots = 5 - totalImages;
+    const filesToAdd = files.slice(0, remainingSlots);
+
+    const validFiles = [];
+    const newErrors = [];
+
+    filesToAdd.forEach(file => {
+      if (file.size > 2 * 1024 * 1024) {
+        newErrors.push(`图片 "${file.name}" 大小为 ${formatFileSize(file.size)}，超过 2MB 限制`);
+      } else if (!file.type.startsWith('image/')) {
+        newErrors.push(`"${file.name}" 不是有效的图片文件`);
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (files.length > remainingSlots) {
+      newErrors.push(`最多只能上传 5 张图片，已自动忽略 ${files.length - remainingSlots} 张`);
+    }
+
+    if (newErrors.length > 0) {
+      setErrors(prev => ({ ...prev, images: newErrors.join('；') }));
+    } else {
+      setErrors(prev => ({ ...prev, images: '' }));
+    }
+
+    if (validFiles.length > 0) {
+      setEditNewImages(prev => [...prev, ...validFiles]);
+      
+      const previews = await Promise.all(
+        validFiles.map(file => {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              resolve({
+                dataUrl: reader.result,
+                name: file.name,
+                size: file.size
+              });
+            };
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+      
+      setEditNewPreviews(prev => [...prev, ...previews]);
+    }
+
+    e.target.value = '';
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    
+    setEditLoading(true);
+    setErrors({});
+
+    try {
+      const data = new FormData();
+      if (editFormData.title) data.append('title', editFormData.title);
+      if (editFormData.content) data.append('content', editFormData.content);
+      if (editFormData.openDate) data.append('openDate', editFormData.openDate);
+      
+      const originalImages = editingCapsule.images || [];
+      const removedImages = originalImages.filter(img => 
+        !editExistingImages.find(ei => ei.filename === img.filename)
+      );
+      removedImages.forEach(img => {
+        data.append('removeImages', img.filename);
+      });
+      
+      editNewImages.forEach(image => {
+        data.append('images', image);
+      });
+
+      const response = await axios.put(`/api/capsules/${editingCapsule._id}`, data);
+      
+      if (response.data.success) {
+        setCapsules(prev => prev.map(c => c._id === editingCapsule._id ? response.data.data : c));
+        cancelEdit();
+        alert('胶囊更新成功！');
+      }
+    } catch (error) {
+      console.error('更新胶囊失败:', error);
+      const errorMsg = error.response?.data?.message || '更新失败，请重试';
+      setErrors(prev => ({ ...prev, submit: errorMsg }));
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const isLocked = (openDate) => {
@@ -562,6 +709,305 @@ function Dashboard() {
         </div>
       )}
 
+      {editingCapsule && (
+        <div className="card" style={{ marginBottom: '30px' }}>
+          <div style={{ 
+            textAlign: 'center', 
+            marginBottom: '25px',
+            paddingBottom: '20px',
+            borderBottom: '1px solid #eee'
+          }}>
+            <div style={{ fontSize: '40px', marginBottom: '10px' }}>✏️</div>
+            <h3 style={{ margin: 0, color: '#1f2937', fontSize: '22px' }}>编辑时间胶囊</h3>
+            <p style={{ margin: '8px 0 0 0', color: '#6b7280', fontSize: '14px' }}>
+              修改你的胶囊内容（注意：胶囊开启后将无法修改
+            </p>
+          </div>
+          
+          {errors.submit && (
+            <div className="error-message">
+              ❌ {errors.submit}
+            </div>
+          )}
+
+          <form onSubmit={handleEditSubmit}>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📝</span>
+                胶囊标题
+              </label>
+              <input
+                type="text"
+                name="title"
+                value={editFormData.title}
+                onChange={handleEditChange}
+                placeholder="给这个胶囊起个名字（2-100字符）"
+                className={errors.title ? 'input-error' : ''}
+                disabled={editLoading}
+                maxLength={100}
+              />
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                fontSize: '12px',
+                marginTop: '4px'
+              }}>
+                <span style={{ color: '#9ca3af' }}>
+                  {editFormData.title.length}/100
+                </span>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>💌</span>
+                胶囊内容
+              </label>
+              <textarea
+                name="content"
+                value={editFormData.content}
+                onChange={handleEditChange}
+                rows={8}
+                placeholder="写下你想对将来说的话..."
+                className={errors.content ? 'input-error' : ''}
+                disabled={editLoading}
+                maxLength={10000}
+                style={{ resize: 'vertical' }}
+              />
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                fontSize: '12px',
+                marginTop: '4px'
+              }}>
+                <span style={{ color: '#9ca3af' }}>
+                  {editFormData.content.length}/10000
+                </span>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🔓</span>
+                开启日期
+              </label>
+              <input
+                type="date"
+                name="openDate"
+                value={editFormData.openDate}
+                onChange={handleEditChange}
+                min={getMinDate()}
+                max={getMaxDate()}
+                className={errors.openDate ? 'input-error' : ''}
+                disabled={editLoading}
+              />
+              <p style={{ 
+                fontSize: '12px', 
+                color: '#9ca3af', 
+                marginTop: '6px',
+                marginBottom: 0 
+              }}>
+                💡 提示：选择明天到10年内的某个日期
+              </p>
+            </div>
+
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🖼️</span>
+                图片管理
+                <span style={{ color: '#9ca3af', fontSize: '13px' }}>（最多 5 张，每张不超过 2MB）</span>
+              </label>
+              
+              {editExistingImages.length > 0 && (
+                <div style={{ marginBottom: '12px' }}>
+                  <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>已有图片：</p>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {editExistingImages.map((image, index) => (
+                      <div key={index} style={{ position: 'relative' }}>
+                        <img 
+                          src={image.path} 
+                          alt={image.originalName}
+                          onClick={() => setSelectedPreviewImage(image.path)}
+                          style={{
+                            width: '100%',
+                            height: '100px',
+                            objectFit: 'cover',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeEditExistingImage(index)}
+                          style={{
+                            position: 'absolute',
+                            top: '-8px',
+                            right: '-8px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {editNewPreviews.length > 0 && (
+                <div style={{ marginBottom: '12px' }}>
+                  <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>新上传图片：</p>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {editNewPreviews.map((preview, index) => (
+                      <div key={index} style={{ position: 'relative' }}>
+                        <img 
+                          src={preview.dataUrl} 
+                          alt={preview.name}
+                          onClick={() => setSelectedPreviewImage(preview.dataUrl)}
+                          style={{
+                            width: '100%',
+                            height: '100px',
+                            objectFit: 'cover',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeEditNewImage(index)}
+                          style={{
+                            position: 'absolute',
+                            top: '-8px',
+                            right: '-8px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(editExistingImages.length + editNewImages.length) < 5 && (
+                <label style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '20px',
+                  border: '2px dashed #d1d5db',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  background: '#f9fafb'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.borderColor = '#3b82f6';
+                  e.target.style.background = '#eff6ff';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.background = '#f9fafb';
+                }}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleEditImageSelect}
+                    disabled={editLoading}
+                    style={{ display: 'none' }}
+                  />
+                  <span style={{ fontSize: '24px', marginBottom: '4px' }}>📷</span>
+                  <span style={{ color: '#6b7280', fontSize: '13px' }}>
+                    点击添加图片（{editExistingImages.length + editNewImages.length}/5）
+                  </span>
+                </label>
+              )}
+
+              {errors.images && (
+                <span className="error-text" style={{ display: 'block', marginTop: '8px' }}>
+                  {errors.images}
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                type="button" 
+                className="btn"
+                onClick={cancelEdit}
+                disabled={editLoading}
+                style={{ 
+                  flex: 1,
+                  padding: '14px',
+                  fontSize: '16px',
+                  background: '#6b7280',
+                  color: 'white'
+                }}
+              >
+                取消
+              </button>
+              <button 
+                type="submit" 
+                className="btn btn-primary"
+                disabled={editLoading}
+                style={{ 
+                  flex: 2,
+                  padding: '14px',
+                  fontSize: '16px'
+                }}
+              >
+                {editLoading ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                    <span className="spinner"></span>
+                    保存中...
+                  </span>
+                ) : '💾 保存修改'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {fetchLoading ? (
         <div className="card" style={{ textAlign: 'center', padding: '60px' }}>
           <div className="spinner" style={{ margin: '0 auto 15px auto' }}></div>
@@ -591,24 +1037,46 @@ function Dashboard() {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                 <div className="capsule-title" style={{ margin: 0 }}>{capsule.title}</div>
-                <button
-                  onClick={() => deleteCapsule(capsule._id)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#ef4444',
-                    fontSize: '18px',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.target.style.background = '#fef2f2'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                  title="删除胶囊"
-                >
-                  🗑️
-                </button>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {!capsule.isOpened && (
+                    <button
+                      onClick={() => startEditCapsule(capsule)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#3b82f6',
+                        fontSize: '16px',
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = '#eff6ff'}
+                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                      title="编辑胶囊"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteCapsule(capsule._id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#ef4444',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#fef2f2'}
+                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    title="删除胶囊"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
               <div className="capsule-date">
                 📅 开启时间：{formatDate(capsule.openDate)}
