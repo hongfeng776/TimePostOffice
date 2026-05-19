@@ -75,6 +75,7 @@ function Login() {
   return (
     <div className="auth-form card">
       <h2>欢迎回来</h2>
+      <p className="sub-title">登录你的时间邮局账号</p>
       
       {serverError && (
         <div className="error-message">

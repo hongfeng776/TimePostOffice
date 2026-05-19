@@ -31,10 +31,10 @@ function Register() {
   };
 
   const getStrengthLabel = (strength) => {
-    if (strength <= 1) return { label: '弱', color: '#ff4757' };
-    if (strength <= 2) return { label: '一般', color: '#ffa502' };
-    if (strength <= 3) return { label: '良好', color: '#2ed573' };
-    return { label: '强', color: '#2ed573' };
+    if (strength <= 1) return { label: '弱', color: '#ef4444' };
+    if (strength <= 2) return { label: '一般', color: '#f59e0b' };
+    if (strength <= 3) return { label: '良好', color: '#10b981' };
+    return { label: '强', color: '#10b981' };
   };
 
   const validateForm = () => {
@@ -109,6 +109,7 @@ function Register() {
   return (
     <div className="auth-form card">
       <h2>创建账号</h2>
+      <p className="sub-title">开始你的时间胶囊之旅</p>
       
       {serverError && (
         <div className="error-message">
@@ -158,17 +159,19 @@ function Register() {
           />
           {formData.password && (
             <div className="password-strength">
-              <span>密码强度：</span>
-              <span style={{ color: strengthInfo.color, fontWeight: 'bold' }}>
-                {strengthInfo.label}
-              </span>
+              <div className="strength-label">
+                <span>密码强度</span>
+                <span style={{ color: strengthInfo.color, fontWeight: 'bold' }}>
+                  {strengthInfo.label}
+                </span>
+              </div>
               <div className="strength-bar">
                 {[1, 2, 3, 4].map((level) => (
                   <div
                     key={level}
                     className="strength-segment"
                     style={{
-                      backgroundColor: level <= passwordStrength ? strengthInfo.color : '#eee'
+                      backgroundColor: level <= passwordStrength ? strengthInfo.color : '#e5e7eb'
                     }}
                   />
                 ))}
