@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
 
   return (
     <nav className="navbar">
@@ -10,8 +10,11 @@ function Navbar() {
         <Link to="/">📮 时间邮局</Link>
       </div>
       <div className="navbar-links">
-        {user ? (
+        {isAuthenticated ? (
           <>
+            <span className="user-welcome">
+              👋 你好, <strong>{user?.username}</strong>
+            </span>
             <Link to="/dashboard">我的胶囊</Link>
             <button className="btn btn-secondary" onClick={logout}>退出</button>
           </>

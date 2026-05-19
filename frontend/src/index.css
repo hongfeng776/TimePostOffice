@@ -79,6 +79,86 @@ code {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.auth-form {
+  max-width: 400px;
+  margin: 50px auto;
+}
+
+.auth-form h2 {
+  text-align: center;
+  margin-bottom: 30px;
+  color: #333;
+}
+
+.auth-form .btn {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.auth-footer p {
+  color: #666;
+}
+
+.auth-footer a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
+}
+
+.input-error {
+  border-color: #ff4757 !important;
+}
+
+.error-text {
+  color: #ff4757;
+  font-size: 13px;
+  margin-top: 5px;
+  display: block;
+}
+
+.error-message {
+  background: #fff5f5;
+  border: 1px solid #ffcdd2;
+  color: #ff4757;
+  padding: 12px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.password-strength {
+  margin-top: 10px;
+}
+
+.password-strength span {
+  font-size: 13px;
+  color: #666;
+}
+
+.strength-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.strength-segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  transition: background-color 0.3s ease;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
